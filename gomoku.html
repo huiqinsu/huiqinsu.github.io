@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>五子棋游戏</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .game-wrapper {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .game-area {
+            flex: 0 0 auto;
+        }
+
+        .sidebar {
+            flex: 0 0 300px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .game-info {
+            margin-bottom: 20px;
+        }
+
+        .current-player {
+            font-size: 1.2em;
+            font-weight: bold;
+            padding: 10px;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .current-player::before {
+            content: "当前回合: ";
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(15, 35px);
+            grid-template-rows: repeat(15, 35px);
+            gap: 0;
+            background: #d4a574;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .cell {
+            width: 35px;
+            height: 35px;
+            border: 1px solid #8b6914;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            position: relative;
+            transition: background-color 0.2s ease;
+        }
+
+        .cell:hover:not(.occupied) {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .cell.occupied {
+            cursor: not-allowed;
+        }
+
+        .piece {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            position: absolute;
+            transition: transform 0.2s ease;
+        }
+
+        .piece.black {
+            background: radial-gradient(circle at 30% 30%, #666, #000);
+            box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .piece.white {
+            background: radial-gradient(circle at 30% 30%, #fff, #ccc);
+            box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            border: 1px solid #999;
+        }
+
+        .piece.winning {
+            animation: pulse 0.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes pulse {
+            from {
+                transform: scale(1);
+            }
+            to {
+                transform: scale(1.1);
+            }
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px 20px;
+            font-size: 1em;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+        }
+
+        .share-message {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+            animation: fadeIn 0.3s ease;
+            display: none;
+        }
+
+        .share-message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .share-message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .ranking {
+            margin-top: 20px;
+        }
+
+        .ranking h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .ranking-list {
+            list-style: none;
+        }
+
+        .ranking-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px;
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s ease;
+        }
+
+        .ranking-item:hover {
+            transform: translateX(5px);
+        }
+
+        .ranking-item .rank {
+            font-weight: bold;
+            color: #667eea;
+            min-width: 30px;
+        }
+
+        .ranking-item .name {
+            flex: 1;
+            color: #333;
+        }
+
+        .ranking-item .score {
+            font-weight: bold;
+            color: #f5576c;
+        }
+
+        .player-input {
+            margin-bottom: 15px;
+        }
+
+        .player-input label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: bold;
+        }
+
+        .player-input input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s ease;
+        }
+
+        .player-input input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .winner-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .winner-modal.show {
+            display: flex;
+        }
+
+        .winner-content {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            animation: slideIn 0.3s ease;
+            max-width: 400px;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .winner-content h2 {
+            font-size: 2em;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .winner-content p {
+            font-size: 1.2em;
+            margin-bottom: 30px;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 五子棋游戏</h1>
+        
+        <div class="game-wrapper">
+            <div class="game-area">
+                <div class="board" id="board"></div>
+            </div>
+            
+            <div class="sidebar">
+                <div class="player-input">
+                    <label for="player1Name">⚫ 黑方玩家:</label>
+                    <input type="text" id="player1Name" value="玩家1" placeholder="输入黑方玩家名">
+                </div>
+                
+                <div class="player-input">
+                    <label for="player2Name">⚪ 白方玩家:</label>
+                    <input type="text" id="player2Name" value="玩家2" placeholder="输入白方玩家名">
+                </div>
+                
+                <div class="current-player" id="currentPlayer">⚫ 黑方</div>
+                
+                <div class="game-info">
+                    <button class="btn btn-primary" onclick="resetGame()">🔄 重新开始</button>
+                    <button class="btn btn-primary" onclick="shareGame()">📤 分享游戏</button>
+                    <button class="btn btn-secondary" onclick="clearRankings()">🗑️ 清空排名</button>
+                </div>
+                <div id="shareMessage" class="share-message"></div>
+                
+                <div class="ranking">
+                    <h3>🏆 排行榜</h3>
+                    <ul class="ranking-list" id="rankingList"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="winner-modal" id="winnerModal">
+        <div class="winner-content">
+            <h2>🎉 游戏结束!</h2>
+            <p id="winnerText">恭喜获胜！</p>
+            <button class="btn btn-primary" onclick="resetGame()">再来一局</button>
+        </div>
+    </div>
+
+    <script>
+        const BOARD_SIZE = 15;
+        const EMPTY = 0;
+        const BLACK = 1;
+        const WHITE = 2;
+
+        let board = [];
+        let currentPlayer = BLACK;
+        let gameOver = false;
+        let rankings = JSON.parse(localStorage.getItem('gomokuRankings')) || [];
+
+        function initBoard() {
+            const boardElement = document.getElementById('board');
+            boardElement.innerHTML = '';
+            board = [];
+
+            for (let row = 0; row < BOARD_SIZE; row++) {
+                board[row] = [];
+                for (let col = 0; col < BOARD_SIZE; col++) {
+                    board[row][col] = EMPTY;
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+                    cell.onclick = () => handleClick(row, col);
+                    boardElement.appendChild(cell);
+                }
+            }
+
+            currentPlayer = BLACK;
+            gameOver = false;
+            updateCurrentPlayer();
+            hideWinnerModal();
+        }
+
+        function handleClick(row, col) {
+            if (board[row][col] !== EMPTY || gameOver) return;
+
+            board[row][col] = currentPlayer;
+            updateCell(row, col);
+
+            if (checkWin(row, col)) {
+                gameOver = true;
+                showWinner(currentPlayer);
+                updateRankings(currentPlayer);
+                return;
+            }
+
+            currentPlayer = currentPlayer === BLACK ? WHITE : BLACK;
+            updateCurrentPlayer();
+        }
+
+        function updateCell(row, col) {
+            const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+            const piece = document.createElement('div');
+            piece.className = `piece ${currentPlayer === BLACK ? 'black' : 'white'}`;
+            cell.appendChild(piece);
+            cell.classList.add('occupied');
+        }
+
+        function checkWin(row, col) {
+            const directions = [
+                [0, 1],   // 水平
+                [1, 0],   // 垂直
+                [1, 1],   // 对角线
+                [1, -1]   // 反对角线
+            ];
+
+            for (const [dx, dy] of directions) {
+                let count = 1;
+                const winningCells = [[row, col]];
+
+                // 正方向
+                for (let i = 1; i < 5; i++) {
+                    const newRow = row + dx * i;
+                    const newCol = col + dy * i;
+                    if (newRow >= 0 && newRow < BOARD_SIZE && 
+                        newCol >= 0 && newCol < BOARD_SIZE && 
+                        board[newRow][newCol] === currentPlayer) {
+                        count++;
+                        winningCells.push([newRow, newCol]);
+                    } else {
+                        break;
+                    }
+                }
+
+                // 反方向
+                for (let i = 1; i < 5; i++) {
+                    const newRow = row - dx * i;
+                    const newCol = col - dy * i;
+                    if (newRow >= 0 && newRow < BOARD_SIZE && 
+                        newCol >= 0 && newCol < BOARD_SIZE && 
+                        board[newRow][newCol] === currentPlayer) {
+                        count++;
+                        winningCells.push([newRow, newCol]);
+                    } else {
+                        break;
+                    }
+                }
+
+                if (count >= 5) {
+                    highlightWinningCells(winningCells);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        function highlightWinningCells(cells) {
+            cells.forEach(([row, col]) => {
+                const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                const piece = cell.querySelector('.piece');
+                if (piece) {
+                    piece.classList.add('winning');
+                }
+            });
+        }
+
+        function updateCurrentPlayer() {
+            const playerElement = document.getElementById('currentPlayer');
+            const playerName = currentPlayer === BLACK 
+                ? document.getElementById('player1Name').value 
+                : document.getElementById('player2Name').value;
+            const playerSymbol = currentPlayer === BLACK ? '⚫' : '⚪';
+            playerElement.textContent = `${playerSymbol} ${playerName}`;
+            
+            if (currentPlayer === BLACK) {
+                playerElement.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+            } else {
+                playerElement.style.background = 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)';
+            }
+        }
+
+        function showWinner(winner) {
+            const playerName = winner === BLACK 
+                ? document.getElementById('player1Name').value 
+                : document.getElementById('player2Name').value;
+            const playerSymbol = winner === BLACK ? '⚫' : '⚪';
+            
+            document.getElementById('winnerText').textContent = 
+                `恭喜 ${playerSymbol} ${playerName} 获得胜利!`;
+            document.getElementById('winnerModal').classList.add('show');
+        }
+
+        function hideWinnerModal() {
+            document.getElementById('winnerModal').classList.remove('show');
+        }
+
+        function updateRankings(winner) {
+            const playerName = winner === BLACK 
+                ? document.getElementById('player1Name').value 
+                : document.getElementById('player2Name').value;
+
+            const existingPlayer = rankings.find(p => p.name === playerName);
+            if (existingPlayer) {
+                existingPlayer.score++;
+            } else {
+                rankings.push({ name: playerName, score: 1 });
+            }
+
+            rankings.sort((a, b) => b.score - a.score);
+            localStorage.setItem('gomokuRankings', JSON.stringify(rankings));
+            displayRankings();
+        }
+
+        function displayRankings() {
+            const rankingList = document.getElementById('rankingList');
+            rankingList.innerHTML = '';
+
+            rankings.forEach((player, index) => {
+                const item = document.createElement('li');
+                item.className = 'ranking-item';
+                
+                let rankEmoji = '';
+                if (index === 0) rankEmoji = '🥇';
+                else if (index === 1) rankEmoji = '🥈';
+                else if (index === 2) rankEmoji = '🥉';
+                else rankEmoji = `${index + 1}`;
+
+                item.innerHTML = `
+                    <span class="rank">${rankEmoji}</span>
+                    <span class="name">${player.name}</span>
+                    <span class="score">${player.score}胜</span>
+                `;
+                rankingList.appendChild(item);
+            });
+        }
+
+        function resetGame() {
+            initBoard();
+        }
+
+        function clearRankings() {
+            if (confirm('确定要清空所有排名吗？')) {
+                rankings = [];
+                localStorage.removeItem('gomokuRankings');
+                displayRankings();
+            }
+        }
+
+        function shareGame() {
+            const shareMessage = document.getElementById('shareMessage');
+            
+            // 获取当前页面URL
+            const currentUrl = window.location.href;
+            
+            // 尝试复制到剪贴板
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(currentUrl)
+                    .then(() => {
+                        shareMessage.textContent = '✅ 游戏链接已复制到剪贴板！快分享给好友吧！';
+                        shareMessage.className = 'share-message success';
+                        shareMessage.style.display = 'block';
+                        
+                        // 3秒后隐藏提示
+                        setTimeout(() => {
+                            shareMessage.style.display = 'none';
+                        }, 3000);
+                    })
+                    .catch(err => {
+                        shareMessage.textContent = '❌ 复制失败，请手动复制链接';
+                        shareMessage.className = 'share-message error';
+                        shareMessage.style.display = 'block';
+                        
+                        // 5秒后隐藏提示
+                        setTimeout(() => {
+                            shareMessage.style.display = 'none';
+                        }, 5000);
+                    });
+            } else {
+                // 降级处理：提示用户手动复制
+                shareMessage.textContent = `📋 请手动复制链接: ${currentUrl}`;
+                shareMessage.className = 'share-message success';
+                shareMessage.style.display = 'block';
+                
+                // 10秒后隐藏提示
+                setTimeout(() => {
+                    shareMessage.style.display = 'none';
+                }, 10000);
+            }
+        }
+
+        // 监听玩家名称变化
+        document.getElementById('player1Name').addEventListener('input', updateCurrentPlayer);
+        document.getElementById('player2Name').addEventListener('input', updateCurrentPlayer);
+
+        // 初始化游戏
+        initBoard();
+        displayRankings();
+    </script>
+</body>
+</html>
