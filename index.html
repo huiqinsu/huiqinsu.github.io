@@ -3,1057 +3,142 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Car Race - 赛车跑酷</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-family: 'Press Start 2P', 'Courier New', monospace;
-            overflow: hidden;
-        }
-        
-        .game-container {
-            position: relative;
-            box-shadow: 0 0 50px rgba(0, 0, 0, 0.5),
-                        0 0 100px rgba(231, 76, 60, 0.2),
-                        inset 0 0 30px rgba(0, 0, 0, 0.3);
-            border-radius: 10px;
-            overflow: hidden;
-        }
-        
-        canvas {
-            display: block;
-            border-radius: 10px;
-        }
-        
-        .instructions {
-            position: absolute;
-            bottom: -60px;
-            left: 50%;
-            transform: translateX(-50%);
-            color: #aaa;
-            font-size: 10px;
-            text-align: center;
-            white-space: nowrap;
-        }
-    </style>
+    <title>在线五子棋 - 网络对战</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="game-container">
-        <canvas id="gameCanvas" width="600" height="800"></canvas>
-        <div class="instructions">↑ 加速 | ↓ 减速 | ← → 转向 | Z 发射炮弹 | 空格 开始/重新开始</div>
+    <!-- 登录/注册页面 -->
+    <div id="authPage" class="page">
+        <div class="auth-container">
+            <h1>🎮 在线五子棋</h1>
+            <div class="auth-form">
+                <div class="tabs">
+                    <button class="tab active" data-tab="login">登录</button>
+                    <button class="tab" data-tab="register">注册</button>
+                </div>
+                
+                <!-- 登录表单 -->
+                <form id="loginForm" class="form-content active">
+                    <div class="form-group">
+                        <label for="loginUsername">用户名</label>
+                        <input type="text" id="loginUsername" placeholder="请输入用户名" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="loginPassword">密码</label>
+                        <input type="password" id="loginPassword" placeholder="请输入密码" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">登录</button>
+                    <p id="loginError" class="error-message"></p>
+                </form>
+                
+                <!-- 注册表单 -->
+                <form id="registerForm" class="form-content">
+                    <div class="form-group">
+                        <label for="registerUsername">用户名</label>
+                        <input type="text" id="registerUsername" placeholder="3-20个字符" required>
+                        <small>用户名长度必须在3-20个字符之间</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="registerPassword">密码</label>
+                        <input type="password" id="registerPassword" placeholder="至少6个字符" required>
+                        <small>密码长度至少6个字符</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="registerConfirmPassword">确认密码</label>
+                        <input type="password" id="registerConfirmPassword" placeholder="再次输入密码" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">注册</button>
+                    <p id="registerError" class="error-message"></p>
+                </form>
+            </div>
+        </div>
     </div>
 
-    <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        
-        const CANVAS_WIDTH = 600;
-        const CANVAS_HEIGHT = 800;
-        const ROAD_WIDTH = 300;
-        const ROAD_LEFT = (CANVAS_WIDTH - ROAD_WIDTH) / 2;
-        const ROAD_RIGHT = ROAD_LEFT + ROAD_WIDTH;
-        
-        const LANE_WIDTH = ROAD_WIDTH / 3;
-        const LANES = [
-            ROAD_LEFT + LANE_WIDTH / 2,
-            ROAD_LEFT + LANE_WIDTH * 1.5,
-            ROAD_LEFT + LANE_WIDTH * 2.5
-        ];
-        
-        const COLORS = {
-            sky: '#87CEEB',
-            road: '#3d3d3d',
-            roadLine: '#ffffff',
-            grass: '#228B22',
-            grassDark: '#1a6b1a',
-            playerCar: '#e74c3c',
-            playerCarDark: '#c0392b',
-            text: '#ffffff',
-            textShadow: '#000000'
-        };
-        
-        const OBSTACLE_TYPES = [
-            { name: 'pedestrian', width: 30, height: 60, colors: ['#3498db', '#2ecc71', '#9b59b6', '#e67e22'] },
-            { name: 'dog', width: 40, height: 30, colors: ['#8B4513', '#D2691E', '#A0522D'] },
-            { name: 'cat', width: 35, height: 30, colors: ['#FFA500', '#808080', '#FFD700'] },
-            { name: 'roadblock', width: 80, height: 30, colors: ['#e74c3c', '#ffffff'] },
-            { name: 'cone', width: 30, height: 30, colors: ['#ff6600', '#ffffff'] },
-            { name: 'truck', width: 60, height: 100, colors: ['#2c3e50', '#34495e'] },
-            { name: 'coin', width: 35, height: 35, colors: ['#FFD700', '#FFA500'] }
-        ];
-        
-        let gameState = 'start';
-        let score = 0;
-        let highScore = 0;
-        let speed = 5;
-        let baseSpeed = 5;
-        let maxSpeed = 15;
-        let roadOffset = 0;
-        
-        let player = {
-            x: CANVAS_WIDTH / 2,
-            y: CANVAS_HEIGHT - 150,
-            width: 50,
-            height: 80,
-            targetX: CANVAS_WIDTH / 2,
-            tilt: 0
-        };
-        
-        let obstacles = [];
-        let bullets = [];
-        let lastShotTime = 0;
-        let keys = {};
-        let lastObstacleTime = 0;
-        let explosionParticles = [];
-        let screenShake = 0;
-        
-        let audioCtx = null;
-        let musicEnabled = true;
-        
-        function initAudio() {
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume();
-            }
-        }
-        
-        function playNote(freq, duration, type = 'square', volume = 0.1) {
-            if (!audioCtx || !musicEnabled) return;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.type = type;
-            osc.frequency.value = freq;
-            gain.gain.setValueAtTime(volume, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-            osc.start();
-            osc.stop(audioCtx.currentTime + duration);
-        }
-        
-        function playArpeggio(notes, interval = 0.1) {
-            notes.forEach((freq, i) => {
-                setTimeout(() => playNote(freq, 0.15, 'square', 0.08), i * interval * 1000);
-            });
-        }
-        
-        function playStartSound() {
-            initAudio();
-            const notes = [523, 659, 784, 1047];
-            playArpeggio(notes, 0.12);
-        }
-        
-        function playGameOverSound() {
-            initAudio();
-            const notes = [400, 350, 300, 250, 200];
-            notes.forEach((freq, i) => {
-                setTimeout(() => playNote(freq, 0.2, 'sawtooth', 0.12), i * 150);
-            });
-        }
-        
-        function playCollisionSound() {
-            initAudio();
-            playNote(150, 0.3, 'sawtooth', 0.2);
-            setTimeout(() => playNote(100, 0.4, 'sawtooth', 0.2), 100);
-        }
-        
-        function playShootSound() {
-            initAudio();
-            playNote(880, 0.1, 'square', 0.08);
-            setTimeout(() => playNote(660, 0.08, 'square', 0.06), 50);
-        }
-        
-        function playExplodeSound() {
-            initAudio();
-            playNote(200, 0.15, 'sawtooth', 0.15);
-            setTimeout(() => playNote(150, 0.2, 'sawtooth', 0.12), 80);
-            setTimeout(() => playNote(100, 0.25, 'sawtooth', 0.1), 160);
-        }
-        
-        function playCoinSound() {
-            initAudio();
-            playNote(987, 0.1, 'sine', 0.15);
-            setTimeout(() => playNote(1318, 0.15, 'sine', 0.15), 80);
-        }
-        
-        function createCoinEffect(x, y) {
-            for (let i = 0; i < 10; i++) {
-                explosionParticles.push({
-                    x: x,
-                    y: y,
-                    vx: (Math.random() - 0.5) * 8,
-                    vy: (Math.random() - 0.5) * 8,
-                    life: 1,
-                    color: '#FFD700',
-                    size: Math.random() * 5 + 3
-                });
-            }
-        }
-        
-        function shoot() {
-            const now = Date.now();
-            if (now - lastShotTime < 300) return;
-            lastShotTime = now;
+    <!-- 游戏大厅页面 -->
+    <div id="lobbyPage" class="page hidden">
+        <div class="container">
+            <header class="header">
+                <h1>🎮 在线五子棋</h1>
+                <div class="user-info">
+                    <span id="currentUsername">玩家</span>
+                    <span id="currentUserScore">0分</span>
+                    <button id="logoutBtn" class="btn btn-secondary btn-sm">退出登录</button>
+                </div>
+            </header>
             
-            playShootSound();
-            
-            bullets.push({
-                x: player.x,
-                y: player.y - player.height / 2 - 10,
-                width: 8,
-                height: 20,
-                speed: 15
-            });
-        }
-        
-        function updateBullets() {
-            for (let i = bullets.length - 1; i >= 0; i--) {
-                bullets[i].y -= bullets[i].speed;
-                
-                if (bullets[i].y < -30) {
-                    bullets.splice(i, 1);
-                    continue;
-                }
-                
-                for (let j = obstacles.length - 1; j >= 0; j--) {
-                    if (obstacles[j].type === 'coin') continue;
+            <div class="main-content">
+                <div class="game-panel">
+                    <div class="panel-header">
+                        <h2>🎯 游戏大厅</h2>
+                    </div>
                     
-                    if (checkBulletCollision(bullets[i], obstacles[j])) {
-                        playExplodeSound();
-                        createExplosion(obstacles[j].x, obstacles[j].y);
-                        obstacles.splice(j, 1);
-                        bullets.splice(i, 1);
-                        score += 50;
-                        break;
-                    }
-                }
-            }
-        }
-        
-        function checkBulletCollision(bullet, obs) {
-            const bx = bullet.x - bullet.width / 2;
-            const by = bullet.y - bullet.height / 2;
-            const ox = obs.x - obs.width / 2;
-            const oy = obs.y - obs.height / 2;
-            
-            return bx < ox + obs.width &&
-                   bx + bullet.width > ox &&
-                   by < oy + obs.height &&
-                   by + bullet.height > oy;
-        }
-        
-        let bgMusicInterval = null;
-        let bgMusicPlaying = false;
-        let menuMusicInterval = null;
-        let menuMusicPlaying = false;
-        
-        function playBackgroundMusic() {
-            if (bgMusicPlaying) return;
-            bgMusicPlaying = true;
-            
-            const bassLine = [110, 110, 130, 130, 146, 146, 130, 110];
-            const melody = [523, 0, 659, 0, 784, 0, 659, 523, 0, 523, 0, 659, 0, 784, 784, 0];
-            
-            let bassIndex = 0;
-            let melodyIndex = 0;
-            
-            bgMusicInterval = setInterval(() => {
-                if (gameState !== 'playing' || !musicEnabled) return;
-                playNote(bassLine[bassIndex], 0.25, 'triangle', 0.15);
-                bassIndex = (bassIndex + 1) % bassLine.length;
+                    <div class="panel-body">
+                        <div class="match-section">
+                            <button id="findMatchBtn" class="btn btn-primary btn-lg">
+                                🔍 寻找对手
+                            </button>
+                            <button id="cancelMatchBtn" class="btn btn-secondary btn-lg hidden">
+                                ❌ 取消匹配
+                            </button>
+                            <p id="matchStatus" class="match-status"></p>
+                        </div>
+                        
+                        <div id="gameInfo" class="game-info hidden">
+                            <div class="players-info">
+                                <div class="player-card black">
+                                    <span class="player-name" id="blackPlayerName">黑方玩家</span>
+                                    <span class="player-indicator"></span>
+                                </div>
+                                <div class="vs">VS</div>
+                                <div class="player-card white">
+                                    <span class="player-indicator"></span>
+                                    <span class="player-name" id="whitePlayerName">白方玩家</span>
+                                </div>
+                            </div>
+                            <div class="turn-indicator">
+                                <span id="turnIndicator">等待开始</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 
-                if (melody[melodyIndex] > 0) {
-                    playNote(melody[melodyIndex], 0.15, 'square', 0.05);
-                }
-                melodyIndex = (melodyIndex + 1) % melody.length;
-            }, 250);
-        }
-        
-        function stopBackgroundMusic() {
-            if (bgMusicInterval) {
-                clearInterval(bgMusicInterval);
-                bgMusicInterval = null;
-            }
-            bgMusicPlaying = false;
-        }
-        
-        function playMenuMusic() {
-            if (menuMusicPlaying) return;
-            menuMusicPlaying = true;
-            
-            const melody = [392, 440, 494, 523, 587, 659, 698, 784];
-            let index = 0;
-            menuMusicInterval = setInterval(() => {
-                if (gameState !== 'start' || !musicEnabled) return;
-                playNote(melody[index], 0.3, 'triangle', 0.1);
-                index = (index + 1) % melody.length;
-            }, 400);
-        }
-        
-        function stopMenuMusic() {
-            if (menuMusicInterval) {
-                clearInterval(menuMusicInterval);
-                menuMusicInterval = null;
-            }
-            menuMusicPlaying = false;
-        }
-        
-        document.addEventListener('keydown', (e) => {
-            keys[e.code] = true;
-            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Enter'].includes(e.code)) {
-                e.preventDefault();
-            }
-            if ((e.code === 'Space' || e.code === 'Enter') && gameState !== 'playing') {
-                startGame();
-            }
-            if (e.code === 'KeyZ' && gameState === 'playing') {
-                shoot();
-            }
-        });
-        
-        document.addEventListener('keyup', (e) => {
-            keys[e.code] = false;
-        });
-        
-        canvas.addEventListener('click', (e) => {
-            const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            if (x > CANVAS_WIDTH - 50 && x < CANVAS_WIDTH - 10 && y > 10 && y < 40) {
-                musicEnabled = !musicEnabled;
-                if (!musicEnabled) {
-                    stopBackgroundMusic();
-                } else if (gameState === 'playing') {
-                    playBackgroundMusic();
-                }
-            }
-        });
-        
-        function startGame() {
-            initAudio();
-            gameState = 'playing';
-            score = 0;
-            speed = baseSpeed;
-            player.x = CANVAS_WIDTH / 2;
-            player.targetX = CANVAS_WIDTH / 2;
-            player.tilt = 0;
-            obstacles = [];
-            bullets = [];
-            explosionParticles = [];
-            screenShake = 0;
-            lastObstacleTime = Date.now();
-            
-            stopBackgroundMusic();
-            bgMusicPlaying = false;
-            
-            stopMenuMusic();
-            menuMusicPlaying = false;
-            
-            playStartSound();
-            setTimeout(() => {
-                playBackgroundMusic();
-            }, 500);
-        }
-        
-        function spawnObstacle() {
-            const now = Date.now();
-            const spawnInterval = Math.max(800, 2000 - score * 2);
-            
-            if (now - lastObstacleTime < spawnInterval) return;
-            
-            const type = OBSTACLE_TYPES[Math.floor(Math.random() * OBSTACLE_TYPES.length)];
-            const lane = Math.floor(Math.random() * 3);
-            const laneX = LANES[lane];
-            
-            let obstacleX = laneX;
-            if (type.name === 'roadblock') {
-                obstacleX = laneX + (Math.random() - 0.5) * 30;
-            }
-            
-            obstacles.push({
-                x: obstacleX,
-                y: -type.height,
-                width: type.width,
-                height: type.height,
-                type: type.name,
-                color: type.colors[Math.floor(Math.random() * type.colors.length)],
-                extraColor: type.colors.length > 1 ? type.colors[1] : null
-            });
-            
-            lastObstacleTime = now;
-        }
-        
-        function updatePlayer() {
-            if (keys['ArrowLeft']) {
-                player.targetX -= 8;
-                player.tilt = Math.max(player.tilt - 0.3, -0.3);
-            } else if (keys['ArrowRight']) {
-                player.targetX += 8;
-                player.tilt = Math.min(player.tilt + 0.3, 0.3);
-            } else {
-                player.tilt *= 0.9;
-            }
-            
-            if (keys['ArrowUp']) {
-                speed = Math.min(speed + 0.1, maxSpeed);
-            } else if (keys['ArrowDown']) {
-                speed = Math.max(speed - 0.15, 2);
-            } else {
-                if (speed > baseSpeed) speed -= 0.05;
-                if (speed < baseSpeed) speed += 0.02;
-            }
-            
-            player.targetX = Math.max(ROAD_LEFT + player.width / 2 + 10, 
-                                      Math.min(ROAD_RIGHT - player.width / 2 - 10, player.targetX));
-            
-            player.x += (player.targetX - player.x) * 0.2;
-        }
-        
-        function updateObstacles() {
-            for (let i = obstacles.length - 1; i >= 0; i--) {
-                obstacles[i].y += speed;
+                <div class="board-panel">
+                    <div class="panel-header">
+                        <h2>♟️ 棋盘</h2>
+                    </div>
+                    <div class="panel-body">
+                        <div id="board" class="board disabled"></div>
+                    </div>
+                </div>
                 
-                if (obstacles[i].y > CANVAS_HEIGHT + 50) {
-                    obstacles.splice(i, 1);
-                    continue;
-                }
-                
-                if (checkCollision(player, obstacles[i])) {
-                    if (obstacles[i].type === 'coin') {
-                        score += 5;
-                        playCoinSound();
-                        createCoinEffect(obstacles[i].x, obstacles[i].y);
-                        obstacles.splice(i, 1);
-                    } else {
-                        gameOver();
-                        return;
-                    }
-                }
-            }
-        }
-        
-        function checkCollision(a, b) {
-            const ax = a.x - a.width / 2;
-            const ay = a.y - a.height / 2;
-            const bx = b.x - b.width / 2;
-            const by = b.y - b.height / 2;
-            
-            return ax < bx + b.width &&
-                   ax + a.width > bx &&
-                   ay < by + b.height &&
-                   ay + a.height > by;
-        }
-        
-        function gameOver() {
-            gameState = 'gameover';
-            screenShake = 20;
-            createExplosion(player.x, player.y);
-            playCollisionSound();
-            stopBackgroundMusic();
-            bgMusicPlaying = false;
-            setTimeout(playGameOverSound, 500);
-            
-            if (score > highScore) {
-                highScore = score;
-            }
-        }
-        
-        function createExplosion(x, y) {
-            for (let i = 0; i < 30; i++) {
-                explosionParticles.push({
-                    x: x,
-                    y: y,
-                    vx: (Math.random() - 0.5) * 15,
-                    vy: (Math.random() - 0.5) * 15,
-                    life: 1,
-                    color: Math.random() > 0.5 ? '#ff6600' : '#ffcc00',
-                    size: Math.random() * 8 + 4
-                });
-            }
-        }
-        
-        function updateParticles() {
-            for (let i = explosionParticles.length - 1; i >= 0; i--) {
-                const p = explosionParticles[i];
-                p.x += p.vx;
-                p.y += p.vy;
-                p.life -= 0.03;
-                p.vy += 0.3;
-                
-                if (p.life <= 0) {
-                    explosionParticles.splice(i, 1);
-                }
-            }
-            
-            if (screenShake > 0) {
-                screenShake *= 0.9;
-            }
-        }
-        
-        function updateScore() {
-            score += speed * 0.1;
-        }
-        
-        function drawGrass() {
-            const gradient = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
-            gradient.addColorStop(0, '#87CEEB');
-            gradient.addColorStop(0.3, '#B0C4DE');
-            gradient.addColorStop(0.5, '#8B4513');
-            gradient.addColorStop(1, '#654321');
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-            
-            ctx.fillStyle = '#4a6741';
-            for (let i = 0; i < 15; i++) {
-                const baseX = Math.random() * CANVAS_WIDTH;
-                const baseY = CANVAS_HEIGHT - Math.random() * 200;
-                ctx.beginPath();
-                ctx.moveTo(baseX - 30, baseY + 80);
-                ctx.lineTo(baseX, baseY - 60 - Math.random() * 40);
-                ctx.lineTo(baseX + 30, baseY + 80);
-                ctx.closePath();
-                ctx.fill();
-            }
-            
-            ctx.fillStyle = '#3d3d3d';
-            for (let i = 0; i < 20; i++) {
-                const x = Math.random() * CANVAS_WIDTH;
-                const y = Math.random() * CANVAS_HEIGHT * 0.6;
-                const size = 10 + Math.random() * 20;
-                ctx.beginPath();
-                ctx.arc(x, y, size, 0, Math.PI * 2);
-                ctx.fill();
-            }
-            
-            ctx.fillStyle = '#696969';
-            for (let i = 0; i < 5; i++) {
-                const x = 50 + i * 120;
-                const y = 100 + i * 30;
-                const w = 80 + Math.random() * 40;
-                const h = 120 + Math.random() * 80;
-                ctx.beginPath();
-                ctx.moveTo(x, y + h);
-                ctx.lineTo(x + w/2, y);
-                ctx.lineTo(x + w, y + h);
-                ctx.closePath();
-                ctx.fill();
-            }
-            
-            ctx.fillStyle = '#2F4F4F';
-            ctx.fillRect(ROAD_LEFT - 15, 0, 15, CANVAS_HEIGHT);
-            ctx.fillRect(ROAD_RIGHT, 0, 15, CANVAS_HEIGHT);
-            
-            ctx.fillStyle = '#FF8C00';
-            for (let i = 0; i < 3; i++) {
-                const x = ROAD_LEFT - 25;
-                const y = 200 + i * 250;
-                ctx.beginPath();
-                ctx.arc(x, y, 8, 0, Math.PI * 2);
-                ctx.fill();
-            }
-            for (let i = 0; i < 3; i++) {
-                const x = ROAD_RIGHT + 25;
-                const y = 300 + i * 250;
-                ctx.beginPath();
-                ctx.arc(x, y, 8, 0, Math.PI * 2);
-                ctx.fill();
-            }
-        }
-        
-        function drawRoad() {
-            const gradient = ctx.createLinearGradient(ROAD_LEFT, 0, ROAD_RIGHT, 0);
-            gradient.addColorStop(0, '#2d2d2d');
-            gradient.addColorStop(0.3, '#3d3d3d');
-            gradient.addColorStop(0.5, '#4a4a4a');
-            gradient.addColorStop(0.7, '#3d3d3d');
-            gradient.addColorStop(1, '#2d2d2d');
-            ctx.fillStyle = gradient;
-            ctx.fillRect(ROAD_LEFT, 0, ROAD_WIDTH, CANVAS_HEIGHT);
-            
-            ctx.fillStyle = '#1a1a1a';
-            ctx.fillRect(ROAD_LEFT, 0, 8, CANVAS_HEIGHT);
-            ctx.fillRect(ROAD_RIGHT - 8, 0, 8, CANVAS_HEIGHT);
-            
-            ctx.setLineDash([40, 30]);
-            ctx.strokeStyle = '#ffd700';
-            ctx.lineWidth = 3;
-            
-            for (let i = 1; i < 3; i++) {
-                const x = ROAD_LEFT + LANE_WIDTH * i;
-                ctx.beginPath();
-                ctx.moveTo(x, roadOffset);
-                ctx.lineTo(x, CANVAS_HEIGHT);
-                ctx.stroke();
-            }
-            ctx.setLineDash([]);
-            
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 6;
-            ctx.beginPath();
-            ctx.moveTo(ROAD_LEFT + 5, 0);
-            ctx.lineTo(ROAD_LEFT + 5, CANVAS_HEIGHT);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(ROAD_RIGHT - 5, 0);
-            ctx.lineTo(ROAD_RIGHT - 5, CANVAS_HEIGHT);
-            ctx.stroke();
-        }
-        
-        function drawPlayer() {
-            ctx.save();
-            ctx.translate(player.x, player.y);
-            ctx.rotate(player.tilt);
-            
-            const w = player.width;
-            const h = player.height;
-            
-            ctx.fillStyle = '#1a1a1a';
-            ctx.fillRect(-w/2 - 2, h/2 - 15, w + 4, 15);
-            
-            ctx.fillStyle = COLORS.playerCar;
-            ctx.beginPath();
-            ctx.moveTo(-w/2, h/2);
-            ctx.lineTo(-w/2, -h/2 + 20);
-            ctx.quadraticCurveTo(-w/2, -h/2, -w/2 + 15, -h/2);
-            ctx.lineTo(w/2 - 15, -h/2);
-            ctx.quadraticCurveTo(w/2, -h/2, w/2, -h/2 + 20);
-            ctx.lineTo(w/2, h/2);
-            ctx.closePath();
-            ctx.fill();
-            
-            ctx.fillStyle = '#87CEEB';
-            ctx.beginPath();
-            ctx.moveTo(-w/2 + 5, -h/2 + 25);
-            ctx.lineTo(-w/2 + 5, -h/2 + 5);
-            ctx.lineTo(w/2 - 5, -h/2 + 5);
-            ctx.lineTo(w/2 - 5, -h/2 + 25);
-            ctx.closePath();
-            ctx.fill();
-            
-            ctx.fillStyle = COLORS.playerCarDark;
-            ctx.fillRect(-w/2 + 5, h/2 - 30, 15, 20);
-            ctx.fillRect(w/2 - 20, h/2 - 30, 15, 20);
-            
-            ctx.fillStyle = '#333';
-            ctx.fillRect(-w/2 + 3, h/2 - 8, 12, 12);
-            ctx.fillRect(w/2 - 15, h/2 - 8, 12, 12);
-            
-            ctx.fillStyle = '#ffff00';
-            ctx.beginPath();
-            ctx.arc(-w/2 + 8, -h/2 + 10, 4, 0, Math.PI * 2);
-            ctx.arc(w/2 - 8, -h/2 + 10, 4, 0, Math.PI * 2);
-            ctx.fill();
-            
-            ctx.restore();
-        }
-        
-        function drawBullet(bullet) {
-            ctx.save();
-            ctx.translate(bullet.x, bullet.y);
-            
-            const gradient = ctx.createLinearGradient(0, -bullet.height/2, 0, bullet.height/2);
-            gradient.addColorStop(0, '#ffff00');
-            gradient.addColorStop(0.5, '#ff6600');
-            gradient.addColorStop(1, '#ff0000');
-            ctx.fillStyle = gradient;
-            
-            ctx.beginPath();
-            ctx.ellipse(0, 0, bullet.width/2, bullet.height/2, 0, 0, Math.PI * 2);
-            ctx.fill();
-            
-            ctx.fillStyle = '#ffffff';
-            ctx.beginPath();
-            ctx.ellipse(0, -bullet.height/4, bullet.width/4, bullet.height/6, 0, 0, Math.PI * 2);
-            ctx.fill();
-            
-            ctx.fillStyle = 'rgba(255, 200, 0, 0.5)';
-            for (let i = 0; i < 3; i++) {
-                ctx.beginPath();
-                ctx.arc(0, bullet.height/2 + 5 + i * 3, 3 - i * 0.5, 0, Math.PI * 2);
-                ctx.fill();
-            }
-            
-            ctx.restore();
-        }
-        
-        function drawObstacle(obs) {
-            ctx.save();
-            ctx.translate(obs.x, obs.y);
-            
-            switch(obs.type) {
-                case 'pedestrian':
-                    drawPedestrian(obs);
-                    break;
-                case 'dog':
-                case 'cat':
-                    drawAnimal(obs);
-                    break;
-                case 'roadblock':
-                    drawRoadblock(obs);
-                    break;
-                case 'cone':
-                    drawCone(obs);
-                    break;
-                case 'truck':
-                    drawTruck(obs);
-                    break;
-                case 'coin':
-                    drawCoin(obs);
-                    break;
-            }
-            
-            ctx.restore();
-        }
-        
-        function drawPedestrian(obs) {
-            const w = obs.width;
-            const h = obs.height;
-            
-            ctx.fillStyle = obs.color;
-            ctx.beginPath();
-            ctx.arc(0, -h/2 + 10, 12, 0, Math.PI * 2);
-            ctx.fill();
-            
-            ctx.fillStyle = obs.color;
-            ctx.fillRect(-10, -h/2 + 20, 20, 30);
-            
-            ctx.fillStyle = '#deb887';
-            ctx.fillRect(-5, h/2 - 10, 10, 15);
-            
-            ctx.fillStyle = '#333';
-            ctx.fillRect(-8, h/2 - 8, 4, 8);
-            ctx.fillRect(4, h/2 - 8, 4, 8);
-        }
-        
-        function drawAnimal(obs) {
-            const w = obs.width;
-            const h = obs.height;
-            
-            ctx.fillStyle = obs.color;
-            
-            if (obs.type === 'dog') {
-                ctx.beginPath();
-                ctx.ellipse(0, 0, w/2, h/2, 0, 0, Math.PI * 2);
-                ctx.fill();
-                
-                ctx.fillStyle = obs.color;
-                ctx.beginPath();
-                ctx.moveTo(-w/2 + 5, -h/2);
-                ctx.lineTo(-w/2 - 5, -h/2 - 10);
-                ctx.lineTo(-w/2 + 10, -h/2);
-                ctx.fill();
-                ctx.beginPath();
-                ctx.moveTo(w/2 - 5, -h/2);
-                ctx.lineTo(w/2 + 5, -h/2 - 10);
-                ctx.lineTo(w/2 - 10, -h/2);
-                ctx.fill();
-                
-                ctx.fillStyle = '#000';
-                ctx.beginPath();
-                ctx.arc(-w/4, -2, 3, 0, Math.PI * 2);
-                ctx.arc(w/4, -2, 3, 0, Math.PI * 2);
-                ctx.fill();
-            } else {
-                ctx.beginPath();
-                ctx.ellipse(0, 0, w/2, h/2, 0, 0, Math.PI * 2);
-                ctx.fill();
-                
-                ctx.beginPath();
-                ctx.moveTo(-w/2 + 3, -h/2);
-                ctx.lineTo(-w/2 - 5, -h/2 - 12);
-                ctx.lineTo(-w/2 + 8, -h/2 + 2);
-                ctx.fill();
-                ctx.beginPath();
-                ctx.moveTo(w/2 - 3, -h/2);
-                ctx.lineTo(w/2 + 5, -h/2 - 12);
-                ctx.lineTo(w/2 - 8, -h/2 + 2);
-                ctx.fill();
-            }
-        }
-        
-        function drawRoadblock(obs) {
-            const w = obs.width;
-            const h = obs.height;
-            
-            ctx.fillStyle = '#666';
-            ctx.fillRect(-w/2, -h/2, w, h);
-            
-            const stripeWidth = 15;
-            ctx.fillStyle = obs.color;
-            for (let i = -2; i < w / stripeWidth + 2; i++) {
-                ctx.save();
-                ctx.translate(-w/2 + i * stripeWidth, -h/2);
-                ctx.rotate(Math.PI / 4);
-                ctx.fillRect(0, 0, stripeWidth, h * 1.5);
-                ctx.restore();
-            }
-            
-            ctx.fillStyle = obs.color;
-            ctx.fillRect(-w/2, -h/2 - 5, 15, 10);
-            ctx.fillRect(w/2 - 15, -h/2 - 5, 15, 10);
-        }
-        
-        function drawCone(obs) {
-            const w = obs.width;
-            const h = obs.height;
-            
-            ctx.fillStyle = '#ffcc00';
-            ctx.beginPath();
-            ctx.moveTo(0, -h/2);
-            ctx.lineTo(w/2 - 5, h/2);
-            ctx.lineTo(-w/2 + 5, h/2);
-            ctx.closePath();
-            ctx.fill();
-            
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(-w/4, -h/6, w/2, 8);
-            ctx.fillRect(-w/3, h/6, w/1.5, 8);
-            
-            ctx.fillStyle = '#333';
-            ctx.beginPath();
-            ctx.ellipse(0, h/2 + 3, w/2 - 3, 5, 0, 0, Math.PI * 2);
-            ctx.fill();
-        }
-        
-        function drawTruck(obs) {
-            const w = obs.width;
-            const h = obs.height;
-            
-            ctx.fillStyle = obs.color;
-            ctx.fillRect(-w/2, -h/2, w, h);
-            
-            ctx.fillStyle = '#87CEEB';
-            ctx.fillRect(-w/2 + 5, -h/2 + 5, 20, 25);
-            ctx.fillRect(-w/2 + 30, -h/2 + 5, 25, 25);
-            
-            ctx.fillStyle = '#1a1a1a';
-            ctx.fillRect(-w/2 + 3, h/2 - 15, 15, 15);
-            ctx.fillRect(w/2 - 18, h/2 - 15, 15, 15);
-            
-            ctx.fillStyle = '#ff0000';
-            ctx.beginPath();
-            ctx.arc(-w/2 - 5, h/2 - 8, 5, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(w/2 + 5, h/2 - 8, 5, 0, Math.PI * 2);
-            ctx.fill();
-        }
-        
-        function drawCoin(obs) {
-            const w = obs.width;
-            const h = obs.height;
-            
-            const time = Date.now() / 200;
-            const bounce = Math.sin(time) * 3;
-            
-            ctx.save();
-            ctx.translate(0, bounce);
-            
-            const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, w/2);
-            gradient.addColorStop(0, '#FFF8DC');
-            gradient.addColorStop(0.3, '#FFD700');
-            gradient.addColorStop(0.7, '#FFA500');
-            gradient.addColorStop(1, '#FF8C00');
-            ctx.fillStyle = gradient;
-            ctx.beginPath();
-            ctx.arc(0, 0, w/2, 0, Math.PI * 2);
-            ctx.fill();
-            
-            ctx.strokeStyle = '#B8860B';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.arc(0, 0, w/2 - 2, 0, Math.PI * 2);
-            ctx.stroke();
-            
-            ctx.fillStyle = '#B8860B';
-            ctx.font = 'bold 16px Arial';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('$', 0, 0);
-            
-            ctx.fillStyle = 'rgba(255, 215, 0, 0.3)';
-            ctx.beginPath();
-            ctx.arc(-w/4, -h/4, w/4, 0, Math.PI * 2);
-            ctx.fill();
-            
-            ctx.restore();
-        }
-        
-        function drawParticles() {
-            for (const p of explosionParticles) {
-                ctx.globalAlpha = p.life;
-                ctx.fillStyle = p.color;
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
-                ctx.fill();
-            }
-            ctx.globalAlpha = 1;
-        }
-        
-        function drawHUD() {
-            ctx.font = '16px "Press Start 2P", Courier New';
-            ctx.textAlign = 'left';
-            
-            ctx.fillStyle = COLORS.textShadow;
-            ctx.fillText(`得分: ${Math.floor(score)}`, 22, 42);
-            ctx.fillStyle = COLORS.text;
-            ctx.fillText(`得分: ${Math.floor(score)}`, 20, 40);
-            
-            ctx.textAlign = 'right';
-            ctx.fillStyle = COLORS.textShadow;
-            ctx.fillText(`速度: ${speed.toFixed(1)}`, CANVAS_WIDTH - 18, 42);
-            ctx.fillStyle = COLORS.text;
-            ctx.fillText(`速度: ${speed.toFixed(1)}`, CANVAS_WIDTH - 20, 40);
-            
-            if (highScore > 0) {
-                ctx.font = '10px "Press Start 2P", Courier New';
-                ctx.textAlign = 'left';
-                ctx.fillStyle = COLORS.textShadow;
-                ctx.fillText(`最高: ${Math.floor(highScore)}`, 22, 62);
-                ctx.fillStyle = '#ffd700';
-                ctx.fillText(`最高: ${Math.floor(highScore)}`, 20, 60);
-            }
-            
-            ctx.font = '12px "Press Start 2P", Courier New';
-            ctx.textAlign = 'right';
-            ctx.fillStyle = musicEnabled ? '#00ff00' : '#ff0000';
-            ctx.fillText(musicEnabled ? '🔊' : '🔇', CANVAS_WIDTH - 20, 80);
-        }
-        
-        function drawStartScreen() {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-            ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-            
-            ctx.font = '28px "Press Start 2P", Courier New';
-            ctx.textAlign = 'center';
-            ctx.fillStyle = COLORS.playerCar;
-            ctx.fillText('赛车跑酷', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 80);
-            
-            ctx.font = '14px "Press Start 2P", Courier New';
-            ctx.fillStyle = COLORS.text;
-            ctx.fillText('控制说明', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 20);
-            
-            ctx.font = '12px "Press Start 2P", Courier New';
-            ctx.fillStyle = '#aaa';
-            ctx.fillText('↑ 加速', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 20);
-            ctx.fillText('↓ 减速', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 50);
-            ctx.fillText('← → 转向', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 80);
-            ctx.fillText('Z 发射炮弹', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 110);
-            
-            ctx.font = '16px "Press Start 2P", Courier New';
-            ctx.fillStyle = '#00ff00';
-            const pulse = Math.sin(Date.now() / 300) * 0.3 + 0.7;
-            ctx.globalAlpha = pulse;
-            ctx.fillText('按空格开始', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 140);
-            ctx.globalAlpha = 1;
-        }
-        
-        function drawGameOver() {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-            ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-            
-            ctx.font = '32px "Press Start 2P", Courier New';
-            ctx.textAlign = 'center';
-            ctx.fillStyle = '#ff0000';
-            ctx.fillText('游戏结束', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 60);
-            
-            ctx.font = '18px "Press Start 2P", Courier New';
-            ctx.fillStyle = COLORS.text;
-            ctx.fillText(`最终得分: ${Math.floor(score)}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
-            
-            if (score >= highScore && score > 0) {
-                ctx.font = '14px "Press Start 2P", Courier New';
-                ctx.fillStyle = '#ffd700';
-                ctx.fillText('🏆 新纪录! 🏆', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 40);
-            }
-            
-            ctx.font = '14px "Press Start 2P", Courier New';
-            ctx.fillStyle = '#aaa';
-            ctx.fillText('按空格重新开始', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 100);
-        }
-        
-        function update() {
-            if (gameState === 'playing') {
-                updatePlayer();
-                spawnObstacle();
-                updateObstacles();
-                updateBullets();
-                updateScore();
-                
-                roadOffset += speed;
-                if (roadOffset > 70) roadOffset = 0;
-            }
-            
-            updateParticles();
-        }
-        
-        function draw() {
-            ctx.save();
-            
-            if (screenShake > 0.5) {
-                ctx.translate(
-                    (Math.random() - 0.5) * screenShake,
-                    (Math.random() - 0.5) * screenShake
-                );
-            }
-            
-            ctx.fillStyle = COLORS.sky;
-            ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-            
-            drawGrass();
-            drawRoad();
-            
-            for (const obs of obstacles) {
-                drawObstacle(obs);
-            }
-            
-            for (const bullet of bullets) {
-                drawBullet(bullet);
-            }
-            
-            if (gameState === 'playing') {
-                drawPlayer();
-            }
-            
-            drawParticles();
-            
-            if (gameState === 'start') {
-                drawStartScreen();
-            } else if (gameState === 'playing') {
-                drawHUD();
-            } else if (gameState === 'gameover') {
-                drawHUD();
-                drawGameOver();
-            }
-            
-            ctx.restore();
-        }
-        
-        function gameLoop() {
-            if (gameState === 'start' && !menuMusicInterval) {
-                initAudio();
-                playMenuMusic();
-            }
-            update();
-            draw();
-            requestAnimationFrame(gameLoop);
-        }
-        
-        gameLoop();
-    </script>
+                <div class="ranking-panel">
+                    <div class="panel-header">
+                        <h2>🏆 排行榜</h2>
+                    </div>
+                    <div class="panel-body">
+                        <ul id="rankingList" class="ranking-list"></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 游戏结束弹窗 -->
+    <div id="gameOverModal" class="modal">
+        <div class="modal-content">
+            <h2 id="gameOverTitle">游戏结束</h2>
+            <p id="gameOverMessage"></p>
+            <button id="backToLobbyBtn" class="btn btn-primary">返回大厅</button>
+        </div>
+    </div>
+
+    <!-- 加载提示 -->
+    <div id="loadingOverlay" class="overlay hidden">
+        <div class="spinner"></div>
+        <p>加载中...</p>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="client.js"></script>
 </body>
 </html>
